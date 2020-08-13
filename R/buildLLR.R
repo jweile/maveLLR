@@ -85,7 +85,9 @@ buildLLR.gauss <- function(posScores, negScores, spline=TRUE) {
 
     llrSpline <- function(scores) {
       sapply(scores,function(score) {
-        if (score > minPoint$minimum) {
+        if (is.na(score)) {
+          NA
+        } else if (score > minPoint$minimum) {
           minPoint$objective
         } else if (score < maxPoint$maximum) {
           maxPoint$objective
@@ -145,7 +147,7 @@ drawDensityLLR <- function(scores, llrFun, posDens, negDens, posScores, negScore
   return(invisible(NULL))
 }
 
-
+#
 # mthfr <- read.csv("~/projects/mthfr/folate_response_model5.csv")
 # variants <- mthfr[mthfr$type=="substitution","hgvs"]
 # scores <- mthfr[mthfr$type=="substitution","m25.score"]
