@@ -2,7 +2,7 @@
 % Please edit documentation in R/buildLLR.R
 \name{buildLLR.kernel}
 \alias{buildLLR.kernel}
-\title{Build LLR function}
+\title{Build LLR function using kernel density estimation}
 \usage{
 buildLLR.kernel(posScores, negScores, bw = 0.1, kernel = "gaussian")
 }
@@ -20,7 +20,7 @@ This can either be a numerical value or the name of the algorithm used to automa
 a list containing the LLR function in log10 scale and the positive and negative density functions
 }
 \description{
-Build LLR function
+Build LLR function using kernel density estimation
 }
 \examples{
 posScores <- rnorm(50,0.2,0.3)

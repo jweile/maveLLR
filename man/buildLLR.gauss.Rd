@@ -2,7 +2,7 @@
 % Please edit documentation in R/buildLLR.R
 \name{buildLLR.gauss}
 \alias{buildLLR.gauss}
-\title{Build LLR function}
+\title{Build LLR function using Gaussian densities.}
 \usage{
 buildLLR.gauss(posScores, negScores, spline = TRUE)
 }
@@ -17,7 +17,7 @@ buildLLR.gauss(posScores, negScores, spline = TRUE)
 a list containing the LLR function in log10 scale and the positive and negative density functions
 }
 \description{
-Build LLR function
+Build LLR function using Gaussian densities.
 }
 \examples{
 
