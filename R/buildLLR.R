@@ -32,14 +32,20 @@
 #' llr <- buildLLR.kernel(posScores,negScores,bw=0.1,kernel="gaussian")
 #' drawDensityLLR(c(posScores,negScores),llr$llr,llr$posDens,llr$negDens,posScores,negScores)
 #'
-buildLLR.kernel <- function(posScores, negScores, bw=0.1, kernel="gaussian") {
+buildLLR.kernel <- function(posScores, negScores, bw=0.1, kernel="gaussian", minCount=1) {
 
   library(kdensity)
 
   posDens <- kdensity(posScores,bw=bw,kernel=kernel)
   negDens <- kdensity(negScores,bw=bw,kernel=kernel)
 
-  llrFun <- function(score) log10(posDens(score)/negDens(score))
+  pseudo <- min(posScores) - 10*ifelse(is.numeric(bw),bw,0.1)
+  minDensPos <- kdensity(c(posScores[-1],pseudo),bw=bw,kernel=kernel)(pseudo)
+  pseudo <- min(negScores) - 10*ifelse(is.numeric(bw),bw,0.1)
+  minDensNeg <- kdensity(c(negScores[-1],pseudo),bw=bw,kernel=kernel)(pseudo)
+  minDens <- max(minDensPos,minDensNeg)
+
+  llrFun <- function(score) sapply(score,function(s)log10(max(posDens(s),minDens)/max(negDens(s),minDens)))
 
   return(list(llr=llrFun,posDens=posDens,negDens=negDens))
 }
