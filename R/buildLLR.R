@@ -33,28 +33,70 @@
 #' drawDensityLLR(c(posScores,negScores),llr$llr,llr$posDens,llr$negDens,posScores,negScores)
 #'
 buildLLR.kernel <- function(posScores, negScores, bw=0.1, kernel="gaussian", outlierSuppression=0.0001) {
-
+  
   library(kdensity)
-
+  
   posDens <- kdensity(posScores,bw=bw,kernel=kernel)
   negDens <- kdensity(negScores,bw=bw,kernel=kernel)
-
+  
   #generate a dummy outlier point far away from the rest of the distribution
   # so we can use it to measure it's hypothetical density
   pseudo <- min(posScores) - 10*ifelse(is.numeric(bw),bw,0.1)
-  #measure the hyothetical density of an outlier point
+  #measure the hypothetical density of an outlier point
   minDensPos <- kdensity(c(posScores[-1],pseudo),bw=bw,kernel=kernel)(pseudo)
   #do the same for the negative distribution
   pseudo <- min(negScores) - 10*ifelse(is.numeric(bw),bw,0.1)
   minDensNeg <- kdensity(c(negScores[-1],pseudo),bw=bw,kernel=kernel)(pseudo)
   #whichever outlier density is higher will serve as our uniform prior
   minDens <- outlierSuppression * max(minDensPos,minDensNeg)
-
+  
   llrFun <- function(score) sapply(score,function(s)
     # log10( max(posDens(s),minDens) / max(negDens(s),minDens) )
     log10(max(posDens(s),minDens)) - log10(max(negDens(s),minDens))
   )
+  
+  return(list(llr=llrFun,posDens=posDens,negDens=negDens))
+}
 
+#' Build LLR function using kernel density estimation - experimental version
+#'
+#' @param posScores fitness scores in the positive reference set
+#' @param negScores fitness scores in the negative reference set
+#' @param bw the bandwith to use for kernel density estimation (see kdensity package for more info).
+#'   This can either be a numerical value or the name of the algorithm used to automatically choose one.
+#' @param kernel the type of kernel to use (see kdensity package for more info)
+#' @param 
+#'
+#' @return a list containing the LLR function in log10 scale and the positive and negative density functions
+#' @export
+#'
+#' @examples
+#' posScores <- rnorm(50,0.2,0.3)
+#' negScores <- rnorm(30,0.8,0.2)
+#' llr <- buildLLR.kernel(posScores,negScores,bw=0.1,kernel="gaussian")
+#' drawDensityLLR(c(posScores,negScores),llr$llr,llr$posDens,llr$negDens,posScores,negScores)
+#'
+buildLLR.kernelExperimental <- function(posScores, negScores, bw=0.1, kernel="gaussian", outlierSuppression=0.0001) {
+  
+  library(kdensity)
+  
+  posDens <- kdensity(posScores,bw=bw,kernel=kernel)
+  negDens <- kdensity(negScores,bw=bw,kernel=kernel)
+  refDens <- kdensity(c(posScores,negScores), bw=bw, kernel=kernel)
+  
+  # generate a dummy outlier point far away from the rest of the distribution
+  # so we can use it to measure it's hypothetical density
+  pseudo <- min(c(posScores, negScores)) - 10*ifelse(is.numeric(bw),bw,0.1)
+  # measure the hypothetical density of an outlier point
+  pseudoDens <- kdensity(c(posScores[-1],negScores,pseudo),bw=bw,kernel=kernel)(pseudo)
+  priorWeight = pseudoDens * outlierSuppression
+  
+  llrFun <- function(score) sapply(score,function(s) {
+    rawLLR = log10(posDens(s)) - log10(negDens(s))
+    weight = refDens(s) / (refDens(s)+priorWeight)
+    finalLLR = rawLLR * weight
+  })
+  
   return(list(llr=llrFun,posDens=posDens,negDens=negDens))
 }
 
@@ -76,17 +118,17 @@ buildLLR.kernel <- function(posScores, negScores, bw=0.1, kernel="gaussian", out
 #' drawDensityLLR(c(posScores,negScores),llr$llr,llr$posDens,llr$negDens,posScores,negScores)
 #'
 buildLLR.gauss <- function(posScores, negScores, spline=TRUE) {
-
+  
   mpos <- mean(posScores)
   spos <- sd(posScores)
   mneg <- mean(negScores)
   sneg <- sd(negScores)
-
+  
   posDens <- function(x) dnorm(x,mpos,spos)
   negDens <- function(x) dnorm(x,mneg,sneg)
-
+  
   llrFun <- function(score) log10(posDens(score)/negDens(score))
-
+  
   if (spline) {
     minPoint <- optimize(llrFun,interval=c(mpos, qnorm(0.999,mneg,sneg)),maximum=FALSE)
     if (minPoint$minimum < mneg) {
@@ -96,7 +138,7 @@ buildLLR.gauss <- function(posScores, negScores, spline=TRUE) {
     if (maxPoint$maximum > mpos) {
       maxPoint$maximum <- -Inf
     }
-
+    
     llrSpline <- function(scores) {
       sapply(scores,function(score) {
         if (is.na(score)) {
@@ -110,13 +152,13 @@ buildLLR.gauss <- function(posScores, negScores, spline=TRUE) {
         }
       })
     }
-
+    
     return(list(llr=llrSpline,posDens=posDens,negDens=negDens))
-
+    
   } else {
     return(list(llr=llrFun,posDens=posDens,negDens=negDens))
   }
-
+  
 }
 
 
@@ -139,9 +181,9 @@ buildLLR.gauss <- function(posScores, negScores, spline=TRUE) {
 #' drawDensityLLR(c(posScores,negScores),llr$llr,llr$posDens,llr$negDens,posScores,negScores)
 #'
 drawDensityLLR <- function(scores, llrFun, posDens, negDens, posScores, negScores, prior=0.1) {
-
+  
   llrTs <- llrThresholds(optiLLR(prior))
-
+  
   opar <- par(mfrow=c(2,1))
   xlim <- range(scores,na.rm=TRUE,finite=TRUE)
   ymax <- max(c(
@@ -153,7 +195,7 @@ drawDensityLLR <- function(scores, llrFun, posDens, negDens, posScores, negScore
   ys <- llrFun(xs)
   ylim <- range(ys,na.rm=TRUE,finite=TRUE)
   plot(NA,type="n",xlim=xlim,ylim=ylim,
-    axes=FALSE,xlab="",ylab="LLR"
+       axes=FALSE,xlab="",ylab="LLR"
   )
   drawThresh <- function(t,col,label) {
     if (t >= 0) {
@@ -186,7 +228,7 @@ drawDensityLLR <- function(scores, llrFun, posDens, negDens, posScores, negScore
   abline(v=posScores,col="firebrick3")
   abline(v=negScores,col="darkolivegreen3")
   par(opar)
-
+  
   return(invisible(NULL))
 }
 
